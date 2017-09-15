@@ -30,27 +30,29 @@ var MediaFileData = require('cordova-plugin-media-capture.MediaFileData');
 /*
  * Class that combines all logic for capturing picture and video on WP8.1
  */
-function MediaCaptureProxy () {
+function MediaCaptureProxy() {
 
-    var previewContainer;
-    var capturePreview = null;
-    var captureCancelButton = null; // eslint-disable-line no-unused-vars
-    var captureSettings = null;
-    var captureStarted = false;
-    var capturedPictureFile;
-    var capturedVideoFile;
-    var capture = null;
+    var previewContainer,
+        capturePreview = null,
+        captureCancelButton = null,
+        captureTakeButton = null,
+        captureSettings = null,
+        captureStarted = false,
+        capturedPictureFile,
+        capturedVideoFile,
+        capturedAudioFile,
+        capture = null;
 
     var CaptureNS = Windows.Media.Capture;
 
     /**
      * Helper function that toggles visibility of DOM elements with provided ids
-     * @param {String} variable number of elements' ids which visibility needs to be toggled
+     * @param {String} variable number of elements' ids which visibility needs to be toggled 
      */
-    function toggleElements () {
+    function toggleElements() {
         // convert arguments to array
         var args = Array.prototype.slice.call(arguments);
-        args.forEach(function (buttonId) {
+        args.forEach(function(buttonId) {
             var buttonEl = document.getElementById(buttonId);
             if (buttonEl) {
                 var curDisplayStyle = buttonEl.style.display;
@@ -63,12 +65,12 @@ function MediaCaptureProxy () {
      * Creates basic camera UI with preview 'video' element and 'Cancel' button
      * Capture starts, when you clicking on preview.
      */
-    function createCameraUI () {
+    function createCameraUI() {
 
-        var buttonStyle = 'margin: 7px; border: 2.5px solid white; width: 45%; height: 35px; color: white; background-color: black;';
+        var buttonStyle = "margin: 7px; border: 2.5px solid white; width: 45%; height: 35px; color: white; background-color: black;";
 
         previewContainer = document.createElement('div');
-        previewContainer.style.cssText = 'background-position: 50% 50%; background-repeat: no-repeat; background-size: contain; background-color: black; left: 0px; top: 0px; width: 100%; height: 100%; position: fixed; z-index: 9999';
+        previewContainer.style.cssText = "background-position: 50% 50%; background-repeat: no-repeat; background-size: contain; background-color: black; left: 0px; top: 0px; width: 100%; height: 100%; position: fixed; z-index: 9999";
         previewContainer.innerHTML =
             '<video id="capturePreview" style="width: 100%; height: 100%"></video>' +
             '<div id="previewButtons" style="width: 100%; bottom: 0px; display: flex; position: absolute; justify-content: space-around; background-color: black;">' +
@@ -85,11 +87,34 @@ function MediaCaptureProxy () {
 
         // Create cancel button
         captureCancelButton = document.getElementById('cancelCapture');
+        captureTakeButton = document.getElementById('takePicture');
 
         capture = new CaptureNS.MediaCapture();
-
         captureSettings = new CaptureNS.MediaCaptureInitializationSettings();
-        captureSettings.streamingCaptureMode = CaptureNS.StreamingCaptureMode.audioAndVideo;
+    }
+
+    function createAudioUI() {
+
+        var buttonStyle = "margin: 7px; border: 2.5px solid white; width: 45%; height: 35px; color: white; background-color: black;";
+
+        previewContainer = document.createElement('div');
+        previewContainer.style.cssText = "background-position: 50% 50%; background-repeat: no-repeat; background-size: contain; background-color: black; left: 0px; top: 0px; width: 100%; height: 100%; position: fixed; z-index: 9999";
+        previewContainer.innerHTML =
+            '<div id="previewButtons" style="width: 100%; top: 50%; display: flex; position: absolute; justify-content: space-around; background-color: black;">' +
+                '<button id="takePicture" style="' + buttonStyle + '">Capture</button>' +
+                '<button id="cancelCapture" style="' + buttonStyle + '">Cancel</button>' +
+                '<button id="selectPicture" style="display: none; ' + buttonStyle + '">Accept</button>' +
+                '<button id="retakePicture" style="display: none; ' + buttonStyle + '">Retake</button>' +
+            '</div>';
+
+        document.body.appendChild(previewContainer);
+
+        // Create cancel button
+        captureCancelButton = document.getElementById('cancelCapture');
+        captureTakeButton = document.getElementById('takePicture');
+
+        capture = new CaptureNS.MediaCapture();
+        captureSettings = new CaptureNS.MediaCaptureInitializationSettings();
     }
 
     /**
@@ -99,14 +124,14 @@ function MediaCaptureProxy () {
      * @param  {function} selectCallback Callback for Select button
      * @param  {function} retakeCallback Callback for Retake button
      */
-    function startCameraPreview (takeCallback, errorCallback, selectCallback, retakeCallback) {
+    function startCameraPreview(takeCallback, errorCallback, selectCallback, retakeCallback) {
         // try to select appropriate device for capture
         // rear camera is preferred option
         var expectedPanel = Windows.Devices.Enumeration.Panel.back;
         Windows.Devices.Enumeration.DeviceInformation.findAllAsync(Windows.Devices.Enumeration.DeviceClass.videoCapture).done(function (devices) {
             if (devices.length > 0) {
                 devices.forEach(function (currDev) {
-                    if (currDev.enclosureLocation && currDev.enclosureLocation.panel && currDev.enclosureLocation.panel === expectedPanel) {
+                    if (currDev.enclosureLocation && currDev.enclosureLocation.panel && currDev.enclosureLocation.panel == expectedPanel) {
                         captureSettings.videoDeviceId = currDev.id;
                     }
                 });
@@ -118,7 +143,7 @@ function MediaCaptureProxy () {
                     capture.setPreviewRotation(Windows.Media.Capture.VideoRotation.clockwise90Degrees);
                     capturePreview.msZoom = true;
 
-                    capturePreview.src = URL.createObjectURL(capture); // eslint-disable-line no-undef
+                    capturePreview.src = URL.createObjectURL(capture);
                     capturePreview.play();
 
                     previewContainer.style.display = 'block';
@@ -143,12 +168,31 @@ function MediaCaptureProxy () {
         });
     }
 
+    function startAudioPreview(takeCallback, errorCallback, selectCallback, retakeCallback) {
+        capture.initializeAsync(captureSettings).done(function () {
+            previewContainer.style.display = 'block';
+
+            // Bind events to controls
+            document.getElementById('takePicture').onclick = takeCallback;
+            document.getElementById('cancelCapture').onclick = function () {
+                errorCallback(CaptureError.CAPTURE_NO_MEDIA_FILES);
+            };
+            document.getElementById('selectPicture').onclick = selectCallback;
+            document.getElementById('retakePicture').onclick = retakeCallback;
+        }, function (err) {
+            destroyCameraPreview();
+            errorCallback(CaptureError.CAPTURE_INTERNAL_ERR, err);
+        });
+    };
+
     /**
      * Destroys camera preview, removes all elements created
      */
-    function destroyCameraPreview () {
-        capturePreview.pause();
-        capturePreview.src = null;
+    function destroyCameraPreview() {
+        if (capturePreview) {
+            capturePreview.pause();
+            capturePreview.src = null;
+        }
         if (previewContainer) {
             document.body.removeChild(previewContainer);
         }
@@ -158,7 +202,82 @@ function MediaCaptureProxy () {
         }
     }
 
+    function stopRecord(callback) {
+        return function () {
+            capture.stopRecordAsync().then(callback(capturedAudioFile));
+        };
+    }
+
     return {
+        /**
+         * Initiate audio capture using MediaCapture class
+         * @param  {function} successCallback Called, when user clicked on preview, with captured file object
+         * @param  {function} errorCallback   Called on any error
+         */
+        captureAudio: function (audioOptions, successCallback, errorCallback) {
+            try {
+                createAudioUI();
+
+                var MediaPropsNS = Windows.Media.MediaProperties,
+                    localAppData = Windows.Storage.ApplicationData.current.localFolder,
+                    generateUniqueName = Windows.Storage.NameCollisionOption.generateUniqueName;
+
+                var mp3EncodingProfile = new MediaPropsNS.MediaEncodingProfile.createMp3(MediaPropsNS.AudioEncodingQuality.auto),
+                    m4aEncodingProfile = new MediaPropsNS.MediaEncodingProfile.createM4a(MediaPropsNS.AudioEncodingQuality.auto);
+
+                captureSettings.streamingCaptureMode = CaptureNS.StreamingCaptureMode.audio;
+
+                startAudioPreview(function () {
+                    if (!captureStarted) {
+                        // remove cancel button and rename 'Take' button to 'Stop'
+                        toggleElements('cancelCapture');
+                        captureTakeButton.textContent = 'Stop';
+
+                        var stopRecordTimeout;
+
+                        localAppData.createFileAsync("captureAudio.mp3", generateUniqueName).then(function (storageFile) {
+                            capturedAudioFile = storageFile;
+                            capture.startRecordToStorageFileAsync(mp3EncodingProfile, capturedAudioFile).then(function () {
+                                stopRecordTimeout = setTimeout(stopRecord(successCallback), audioOptions.duration * 1000);
+                                captureStarted = true;
+                            }, function (err) {
+                                // -1072868846 is the error code for "No suitable transform was found to encode or decode the content."
+                                // so we try to use another (m4a) format
+                                if (err.number === -1072868846) {
+                                    // first we clear existing timeout to prevent success callback to be called with invalid arguments
+                                    // second we start same actions to try to record m4a audio
+                                    clearTimeout(stopRecordTimeout);
+                                    localAppData.createFileAsync("captureAudio.m4a", generateUniqueName).then(function (storageFile) {
+                                        capturedAudioFile = storageFile;
+                                        capture.startRecordToStorageFileAsync(m4aEncodingProfile, capturedAudioFile).then(function () {
+                                            stopRecordTimeout = setTimeout(stopRecord(successCallback), audioOptions.duration * 1000);
+                                        }, function () {
+                                            // if we here, we're totally failed to record either mp3 or m4a
+                                            destroyCameraPreview();
+                                            errorCallback(new CaptureError(CaptureError.CAPTURE_INTERNAL_ERR));
+                                            return;
+                                        });
+                                    });
+                                } else {
+                                    destroyCameraPreview();
+                                    errorCallback(new CaptureError(CaptureError.CAPTURE_INTERNAL_ERR));
+                                    return;
+                                }
+                            });
+                        }, function () { errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES)); });
+                    } else {
+                        capture.stopRecordAsync().done(function () {
+                            destroyCameraPreview();
+                            successCallback(capturedAudioFile);
+                        });
+                    }
+                }, errorCallback);
+            } catch (ex) {
+                destroyCameraPreview();
+                errorCallback(CaptureError.CAPTURE_INTERNAL_ERR, ex);
+            }
+        },
+
         /**
          * Initiate video capture using MediaCapture class
          * @param  {function} successCallback Called, when user clicked on preview, with captured file object
@@ -167,27 +286,29 @@ function MediaCaptureProxy () {
         captureVideo: function (successCallback, errorCallback) {
             try {
                 createCameraUI();
+                captureSettings.streamingCaptureMode = CaptureNS.StreamingCaptureMode.audioAndVideo;
+
                 startCameraPreview(function () {
                     // This callback called twice: whem video capture started and when it ended
                     // so we need to check capture status
                     if (!captureStarted) {
                         // remove cancel button and rename 'Take' button to 'Stop'
                         toggleElements('cancelCapture');
-                        document.getElementById('takePicture').text = 'Stop';
+                        document.getElementById('takePicture').textContent = 'Stop';
 
-                        var encodingProperties = Windows.Media.MediaProperties.MediaEncodingProfile.createMp4(Windows.Media.MediaProperties.VideoEncodingQuality.auto);
-                        var generateUniqueCollisionOption = Windows.Storage.CreationCollisionOption.generateUniqueName;
-                        var localFolder = Windows.Storage.ApplicationData.current.localFolder;
+                        var encodingProperties = Windows.Media.MediaProperties.MediaEncodingProfile.createMp4(Windows.Media.MediaProperties.VideoEncodingQuality.auto),
+                            generateUniqueCollisionOption = Windows.Storage.CreationCollisionOption.generateUniqueName,
+                            localFolder = Windows.Storage.ApplicationData.current.localFolder;
 
-                        localFolder.createFileAsync('cameraCaptureVideo.mp4', generateUniqueCollisionOption).done(function (capturedFile) {
-                            capture.startRecordToStorageFileAsync(encodingProperties, capturedFile).done(function () {
+                        localFolder.createFileAsync("cameraCaptureVideo.mp4", generateUniqueCollisionOption).done(function(capturedFile) {
+                            capture.startRecordToStorageFileAsync(encodingProperties, capturedFile).done(function() {
                                 capturedVideoFile = capturedFile;
                                 captureStarted = true;
-                            }, function (err) {
+                            }, function(err) {
                                 destroyCameraPreview();
                                 errorCallback(CaptureError.CAPTURE_INTERNAL_ERR, err);
                             });
-                        }, function (err) {
+                        }, function(err) {
                             destroyCameraPreview();
                             errorCallback(CaptureError.CAPTURE_INTERNAL_ERR, err);
                         });
@@ -212,14 +333,16 @@ function MediaCaptureProxy () {
         capturePhoto: function (successCallback, errorCallback) {
             try {
                 createCameraUI();
+                captureSettings.streamingCaptureMode = CaptureNS.StreamingCaptureMode.audioAndVideo;
+
                 startCameraPreview(
                     // Callback for Take button - captures intermediate image file.
                     function () {
-                        var encodingProperties = Windows.Media.MediaProperties.ImageEncodingProperties.createJpeg();
-                        var overwriteCollisionOption = Windows.Storage.CreationCollisionOption.replaceExisting;
-                        var tempFolder = Windows.Storage.ApplicationData.current.temporaryFolder;
+                        var encodingProperties = Windows.Media.MediaProperties.ImageEncodingProperties.createJpeg(),
+                            overwriteCollisionOption = Windows.Storage.CreationCollisionOption.replaceExisting,
+                            tempFolder = Windows.Storage.ApplicationData.current.temporaryFolder;
 
-                        tempFolder.createFileAsync('cameraCaptureImage.jpg', overwriteCollisionOption).done(function (capturedFile) {
+                        tempFolder.createFileAsync("cameraCaptureImage.jpg", overwriteCollisionOption).done(function (capturedFile) {
                             capture.capturePhotoToStorageFileAsync(encodingProperties, capturedFile).done(function () {
                                 // store intermediate result in object's global variable
                                 capturedPictureFile = capturedFile;
@@ -242,13 +365,13 @@ function MediaCaptureProxy () {
                     },
                     // Callback for Select button - copies intermediate file into persistent application's storage
                     function () {
-                        var generateUniqueCollisionOption = Windows.Storage.CreationCollisionOption.generateUniqueName;
-                        var localFolder = Windows.Storage.ApplicationData.current.localFolder;
+                        var generateUniqueCollisionOption = Windows.Storage.CreationCollisionOption.generateUniqueName,
+                            localFolder = Windows.Storage.ApplicationData.current.localFolder;
 
                         capturedPictureFile.copyAsync(localFolder, capturedPictureFile.name, generateUniqueCollisionOption).done(function (copiedFile) {
                             destroyCameraPreview();
                             successCallback(copiedFile);
-                        }, function (err) {
+                        }, function(err) {
                             destroyCameraPreview();
                             errorCallback(err);
                         });
@@ -268,11 +391,13 @@ function MediaCaptureProxy () {
 
 module.exports = {
 
-    captureAudio: function (successCallback, errorCallback, args) {
+    captureAudio:function(successCallback, errorCallback, args) {
         var options = args[0];
 
         var audioOptions = new CaptureAudioOptions();
-        if (typeof (options.duration) === 'undefined') {
+        if (typeof(options) == 'undefined') {
+            audioOptions.duration = 3600;
+        } else if (typeof(options.duration) == 'undefined') {
             audioOptions.duration = 3600; // Arbitrary amount, need to change later
         } else if (options.duration > 0) {
             audioOptions.duration = options.duration;
@@ -281,69 +406,29 @@ module.exports = {
             return;
         }
 
-        // Some shortcuts for long namespaces
-        var CaptureNS = Windows.Media.Capture;
-        var MediaPropsNS = Windows.Media.MediaProperties;
-        var localAppData = Windows.Storage.ApplicationData.current.localFolder;
-        var generateUniqueName = Windows.Storage.NameCollisionOption.generateUniqueName;
+        function fail(code, data) {
+            var err = new CaptureError(code);
+            err.message = data;
+            errorCallback(err);
+        }
 
-        var mediaCapture = new CaptureNS.MediaCapture();
-        var mediaCaptureSettings = new CaptureNS.MediaCaptureInitializationSettings();
-        var mp3EncodingProfile = new MediaPropsNS.MediaEncodingProfile.createMp3(MediaPropsNS.AudioEncodingQuality.auto); // eslint-disable-line new-cap
-        var m4aEncodingProfile = new MediaPropsNS.MediaEncodingProfile.createM4a(MediaPropsNS.AudioEncodingQuality.auto); // eslint-disable-line new-cap
+        var proxy = new MediaCaptureProxy();
 
-        mediaCaptureSettings.streamingCaptureMode = CaptureNS.StreamingCaptureMode.audio;
-
-        var capturedFile;
-        var stopRecordTimeout;
-
-        var stopRecord = function () {
-            mediaCapture.stopRecordAsync().then(function () {
-                capturedFile.getBasicPropertiesAsync().then(function (basicProperties) {
-                    var result = new MediaFile(capturedFile.name, 'ms-appdata:///local/' + capturedFile.name, capturedFile.contentType, basicProperties.dateModified, basicProperties.size);
-                    result.fullPath = capturedFile.path;
-                    successCallback([result]);
-                }, function () {
-                    errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES));
-                });
-            }, function () { errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES)); });
-        };
-
-        mediaCapture.initializeAsync(mediaCaptureSettings).done(function () {
-            localAppData.createFileAsync('captureAudio.mp3', generateUniqueName).then(function (storageFile) {
-                capturedFile = storageFile;
-                mediaCapture.startRecordToStorageFileAsync(mp3EncodingProfile, capturedFile).then(function () {
-                    stopRecordTimeout = setTimeout(stopRecord, audioOptions.duration * 1000);
-                }, function (err) {
-                    // -1072868846 is the error code for "No suitable transform was found to encode or decode the content."
-                    // so we try to use another (m4a) format
-                    if (err.number === -1072868846) {
-                        // first we clear existing timeout to prevent success callback to be called with invalid arguments
-                        // second we start same actions to try to record m4a audio
-                        clearTimeout(stopRecordTimeout);
-                        localAppData.createFileAsync('captureAudio.m4a', generateUniqueName).then(function (storageFile) {
-                            capturedFile = storageFile;
-                            mediaCapture.startRecordToStorageFileAsync(m4aEncodingProfile, capturedFile).then(function () {
-                                stopRecordTimeout = setTimeout(stopRecord, audioOptions.duration * 1000);
-                            }, function () {
-                                // if we here, we're totally failed to record either mp3 or m4a
-                                errorCallback(new CaptureError(CaptureError.CAPTURE_INTERNAL_ERR));
-
-                            });
-                        });
-                    } else {
-                        errorCallback(new CaptureError(CaptureError.CAPTURE_INTERNAL_ERR));
-
-                    }
-                });
-            }, function () { errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES)); });
-        });
+        proxy.captureAudio(audioOptions, function (audioFile) {
+            audioFile.getBasicPropertiesAsync().then(function (basicProperties) {
+                var result = new MediaFile(audioFile.name, 'ms-appdata:///local/' + audioFile.name, audioFile.contentType, basicProperties.dateModified, basicProperties.size);
+                result.fullPath = audioFile.path;
+                successCallback([result]);
+            }, function () {
+                errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES));
+            });
+        }, fail);
     },
 
-    captureImage: function (successCallback, errorCallback, args) {
+    captureImage:function (successCallback, errorCallback, args) {
         var CaptureNS = Windows.Media.Capture;
 
-        function fail (code, data) {
+        function fail(code, data) {
             var err = new CaptureError(code);
             err.message = data;
             errorCallback(err);
@@ -375,7 +460,7 @@ module.exports = {
             cameraCaptureUI.photoSettings.format = Windows.Media.Capture.CameraCaptureUIPhotoFormat.jpeg;
             cameraCaptureUI.captureFileAsync(Windows.Media.Capture.CameraCaptureUIMode.photo).done(function (file) {
                 if (file) {
-                    file.moveAsync(Windows.Storage.ApplicationData.current.localFolder, 'cameraCaptureImage.jpg', Windows.Storage.NameCollisionOption.generateUniqueName).then(function () {
+                    file.moveAsync(Windows.Storage.ApplicationData.current.localFolder, "cameraCaptureImage.jpg", Windows.Storage.NameCollisionOption.generateUniqueName).then(function () {
                         file.getBasicPropertiesAsync().then(function (basicProperties) {
                             var result = new MediaFile(file.name, 'ms-appdata:///local/' + file.name, file.contentType, basicProperties.dateModified, basicProperties.size);
                             result.fullPath = file.path;
@@ -395,11 +480,11 @@ module.exports = {
         }
     },
 
-    captureVideo: function (successCallback, errorCallback, args) {
+    captureVideo:function (successCallback, errorCallback, args) {
         var options = args[0];
         var CaptureNS = Windows.Media.Capture;
 
-        function fail (code, data) {
+        function fail(code, data) {
             var err = new CaptureError(code);
             err.message = data;
             errorCallback(err);
@@ -435,49 +520,52 @@ module.exports = {
             cameraCaptureUI.videoSettings.allowTrimming = true;
             cameraCaptureUI.videoSettings.format = Windows.Media.Capture.CameraCaptureUIVideoFormat.mp4;
             cameraCaptureUI.videoSettings.maxDurationInSeconds = videoOptions.duration;
-            cameraCaptureUI.captureFileAsync(Windows.Media.Capture.CameraCaptureUIMode.video).then(function (file) {
+            cameraCaptureUI.captureFileAsync(Windows.Media.Capture.CameraCaptureUIMode.video).then(function(file) {
                 if (file) {
-                    file.moveAsync(Windows.Storage.ApplicationData.current.localFolder, 'cameraCaptureVideo.mp4', Windows.Storage.NameCollisionOption.generateUniqueName).then(function () {
-                        file.getBasicPropertiesAsync().then(function (basicProperties) {
+                    file.moveAsync(Windows.Storage.ApplicationData.current.localFolder, "cameraCaptureVideo.mp4", Windows.Storage.NameCollisionOption.generateUniqueName).then(function () {
+                        file.getBasicPropertiesAsync().then(function(basicProperties) {
                             var result = new MediaFile(file.name, 'ms-appdata:///local/' + file.name, file.contentType, basicProperties.dateModified, basicProperties.size);
                             result.fullPath = file.path;
                             successCallback([result]);
-                        }, function () {
+                        }, function() {
                             errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES));
                         });
-                    }, function () {
+                    }, function() {
                         errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES));
                     });
                 } else {
                     errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES));
                 }
-            }, function () { errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES)); });
+            }, function() { errorCallback(new CaptureError(CaptureError.CAPTURE_NO_MEDIA_FILES)); });
         }
     },
 
     getFormatData: function (successCallback, errorCallback, args) {
         Windows.Storage.StorageFile.getFileFromPathAsync(args[0]).then(
             function (storageFile) {
-                var mediaTypeFlag = String(storageFile.contentType).split('/')[0].toLowerCase();
-                if (mediaTypeFlag === 'audio') {
+                var mediaTypeFlag = String(storageFile.contentType).split("/")[0].toLowerCase();
+                if (mediaTypeFlag === "audio") {
                     storageFile.properties.getMusicPropertiesAsync().then(function (audioProperties) {
                         successCallback(new MediaFileData(null, audioProperties.bitrate, 0, 0, audioProperties.duration / 1000));
                     }, function () {
                         errorCallback(new CaptureError(CaptureError.CAPTURE_INVALID_ARGUMENT));
                     });
-                } else if (mediaTypeFlag === 'video') {
+                }
+                else if (mediaTypeFlag === "video") {
                     storageFile.properties.getVideoPropertiesAsync().then(function (videoProperties) {
                         successCallback(new MediaFileData(null, videoProperties.bitrate, videoProperties.height, videoProperties.width, videoProperties.duration / 1000));
                     }, function () {
                         errorCallback(new CaptureError(CaptureError.CAPTURE_INVALID_ARGUMENT));
                     });
-                } else if (mediaTypeFlag === 'image') {
+                }
+                else if (mediaTypeFlag === "image") {
                     storageFile.properties.getImagePropertiesAsync().then(function (imageProperties) {
                         successCallback(new MediaFileData(null, 0, imageProperties.height, imageProperties.width, 0));
                     }, function () {
                         errorCallback(new CaptureError(CaptureError.CAPTURE_INVALID_ARGUMENT));
                     });
-                } else { errorCallback(new CaptureError(CaptureError.CAPTURE_INVALID_ARGUMENT)); }
+                }
+                else { errorCallback(new CaptureError(CaptureError.CAPTURE_INVALID_ARGUMENT)); }
             }, function () {
                 errorCallback(new CaptureError(CaptureError.CAPTURE_INVALID_ARGUMENT));
             }
@@ -485,4 +573,4 @@ module.exports = {
     }
 };
 
-require('cordova/exec/proxy').add('Capture', module.exports);
+require("cordova/exec/proxy").add("Capture",module.exports);
